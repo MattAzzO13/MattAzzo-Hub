@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#18261f">
+<title>PRISMA — Livorno Città 01</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#18261f;font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated}
+#hud{position:fixed;top:max(10px,env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;z-index:5;pointer-events:none}
+.badge{background:#101b24e8;border:2px solid #9ba7b4;border-radius:10px;padding:7px 11px;color:white;font-weight:900;letter-spacing:.5px;box-shadow:3px 3px 0 #0006}
+.small{font-size:11px;opacity:.75;font-weight:700}
+#toast{position:fixed;left:50%;bottom:145px;transform:translateX(-50%);background:#101923f5;border:2px solid #aab3be;border-radius:9px;color:#fff;padding:10px 13px;max-width:88vw;text-align:center;font-weight:800;z-index:8;opacity:0;transition:.12s;pointer-events:none}
+#toast.on{opacity:1}
+#controls{position:fixed;inset:0;z-index:10;pointer-events:none}
+#joy{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));width:156px;height:156px;border-radius:50%;background:#68716d55;border:3px solid #b9c0bc;box-shadow:inset 0 0 0 14px #00000010;pointer-events:auto}
+#stick{position:absolute;width:66px;height:66px;left:50%;top:50%;margin-left:-33px;margin-top:-33px;border-radius:50%;background:#a5aaa8;border:3px solid #e9eceb;box-shadow:3px 4px 0 #0006;pointer-events:none}
+.actions{position:absolute;right:max(14px,env(safe-area-inset-right));bottom:max(24px,env(safe-area-inset-bottom));display:flex;gap:10px;pointer-events:auto}
+button{height:62px;min-width:108px;border-radius:13px;border:3px solid #9aa8b9;background:#17263a;color:#fff;font:900 14px system-ui;box-shadow:0 5px 0 #07101a;touch-action:none}
+button:active{transform:translateY(4px);box-shadow:0 1px 0 #07101a}
+#modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(88vw,520px);background:#101b24f7;border:3px solid #aab4c0;border-radius:14px;padding:20px;color:#fff;z-index:20;text-align:center;display:none;box-shadow:6px 8px 0 #0007}
+#modal .icon{font-size:48px}#modal h2{margin:4px 0 8px}#modal button{margin-top:10px}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud"><div class="badge"><div id="zone">PORTO</div><div class="small">LIVORNO • CITTÀ 01</div></div><div class="badge" id="count">PRISMIC 0/2</div></div>
+<div id="toast"></div>
+<div id="modal"><div class="icon" id="micon">💧</div><h2 id="mtitle">PRISMIC</h2><div id="mtext"></div><button id="continue">CONTINUA</button></div>
+<div id="controls">
+ <div id="joy"><div id="stick"></div></div>
+ <div class="actions"><button id="action">AZIONE</button><button id="prisma">PRISMA</button></div>
+</div>
+<script>
+const c=document.getElementById('game'),g=c.getContext('2d');
+let dpr=Math.min(devicePixelRatio||1,2),vw=innerWidth,vh=innerHeight;
+function resize(){vw=innerWidth;vh=innerHeight;dpr=Math.min(devicePixelRatio||1,2);c.width=vw*dpr;c.height=vh*dpr;c.style.width=vw+'px';c.style.height=vh+'px';g.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+
+const TILE=32, COLS=86, ROWS=29, WORLD_W=COLS*TILE, WORLD_H=ROWS*TILE;
+const map=Array.from({length:ROWS},()=>Array(COLS).fill('grass'));
+const at=(x,y,v)=>{if(x>=0&&x<COLS&&y>=0&&y<ROWS)map[y][x]=v};
+const fill=(x,y,w,h,v)=>{for(let j=y;j<y+h;j++)for(let i=x;i<x+w;i++)at(i,j,v)};
+
+// sea and beach
+fill(0,0,COLS,6,'sea'); fill(0,6,COLS,2,'beach');
+// roads and plaza
+fill(0,17,COLS,5,'road'); fill(37,8,4,20,'road');
+fill(43,10,14,12,'plaza');
+// port piers
+fill(2,8,24,2,'pier'); fill(14,8,2,9,'pier'); fill(20,8,2,9,'pier');
+// fortress
+fill(66,6,18,2,'wall');fill(66,6,2,13,'wall');fill(82,6,2,13,'wall');fill(66,17,18,2,'wall');fill(70,9,10,6,'fort');
+for(let y=9;y<15;y++)for(let x=70;x<80;x++)at(x,y,'fortfloor');
+
+// houses helper
+const houses=[];
+function house(x,y,w=3,h=2,roof=0){
+ for(let j=0;j<h;j++)for(let i=0;i<w;i++)at(x+i,y+j,'house');
+ houses.push({x,y,w,h,roof});
+}
+// port neighborhood
+house(3,10,4,2,0);house(8,11,3,2,1);house(25,10,4,2,2);house(30,12,3,2,0);
+house(2,20,4,2,1);house(8,20,3,2,2);
+// piazza neighborhood
+house(29,8,4,2,2);house(34,10,3,2,0);house(59,9,4,2,1);house(61,14,3,2,2);
+house(44,23,4,2,0);house(50,23,3,2,1);house(57,23,4,2,2);
+// fortress neighborhood
+house(68,19,4,2,1);house(74,19,3,2,0);house(79,20,3,2,2);
+
+// decorations only on land tiles
+const deco=[];
+function tree(x,y){if(map[y]?.[x]!=='sea'&&map[y]?.[x]!=='pier') {at(x,y,'tree');deco.push({x,y,t:'tree'})}}
+for(const p of [[2,8],[28,8],[32,8],[40,8],[42,8],[60,8],[64,8],[27,16],[33,16],[42,15],[58,16],[62,18],[65,20],[70,22],[76,22],[83,22],[5,24],[12,24],[24,24],[32,24],[40,24],[64,24],[82,24]])tree(...p);
+const decor2=[[47,16,'fountain'],[41,19,'statue'],[58,19,'statue'],[5,17,'lamp'],[24,17,'lamp'],[64,17,'lamp']];
+decor2.forEach(([x,y,t])=>deco.push({x,y,t}));
+
+const solid=new Set(['house','tree','wall','fort']);
+const player={x:30*TILE,y:18*TILE,r:10,speed:2.55};
+const cam={x:0,y:0};
+const prisms=[
+ {name:'Marell',type:'ACQUA',x:18*TILE,y:14*TILE,icon:'💧',c1:'#55c9e8',c2:'#d8fbff',caught:false,phase:0},
+ {name:'Verdin',type:'ERBA',x:53*TILE,y:17*TILE,icon:'🌿',c1:'#68c66c',c2:'#eaffd2',caught:false,phase:1}
+];
+function tileSolid(px,py){
+ const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
+ if(tx<0||ty<0||tx>=COLS||ty>=ROWS)return true;
+ return solid.has(map[ty][tx]);
+}
+function canMove(x,y){
+ const r=player.r;
+ return !tileSolid(x-r,y-r)&&!tileSolid(x+r,y-r)&&!tileSolid(x-r,y+r)&&!tileSolid(x+r,y+r);
+}
+function move(dx,dy){
+ let nx=player.x+dx,ny=player.y+dy;
+ if(canMove(nx,player.y))player.x=nx;
+ if(canMove(player.x,ny))player.y=ny;
+ player.x=Math.max(12,Math.min(WORLD_W-12,player.x));player.y=Math.max(SEA+TILE,Math.min(WORLD_H-12,player.y));
+}
+const joy={x:0,y:0,active:false,id:null};
+const joyEl=document.getElementById('joy'),stick=document.getElementById('stick');
+function setJoy(x,y){
+ const r=joyEl.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.30;
+ let dx=x-cx,dy=y-cy,len=Math.hypot(dx,dy);if(len>max){dx=dx/len*max;dy=dy/len*max}
+ joy.x=dx/max;joy.y=dy/max;
+ stick.style.transform=`translate(${dx}px,${dy}px)`;
+}
+function resetJoy(){joy.active=false;joy.id=null;joy.x=joy.y=0;stick.style.transform='translate(0,0)'}
+joyEl.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];joy.active=true;joy.id=t.identifier;setJoy(t.clientX,t.clientY)},{passive:false});
+document.addEventListener('touchmove',e=>{if(!joy.active)return;for(const t of e.changedTouches)if(t.identifier===joy.id){e.preventDefault();setJoy(t.clientX,t.clientY)}},{passive:false});
+document.addEventListener('touchend',e=>{if(!joy.active)return;for(const t of e.changedTouches)if(t.identifier===joy.id){e.preventDefault();resetJoy()}},{passive:false});
+document.addEventListener('touchcancel',resetJoy);
+joyEl.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')return;e.preventDefault();joy.active=true;joy.id=e.pointerId;setJoy(e.clientX,e.clientY)},{passive:false});
+addEventListener('pointermove',e=>{if(joy.active&&e.pointerType!=='touch'){e.preventDefault();setJoy(e.clientX,e.clientY)}},{passive:false});
+addEventListener('pointerup',e=>{if(joy.active&&e.pointerType!=='touch')resetJoy()});
+
+const keys={};addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function button(id,fn){const el=document.getElementById(id);const f=e=>{e.preventDefault();fn()};el.addEventListener('touchstart',f,{passive:false});el.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')f(e)},{passive:false});el.addEventListener('click',f)}
+function toast(t,ms=1600){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),ms)}
+function nearest(){let b=null,dist=9999;for(const p of prisms)if(!p.caught){let d=Math.hypot(player.x-p.x,player.y-p.y);if(d<dist){dist=d;b=p}}return{p:b,d:dist}}
+function catchIt(){const n=nearest();if(!n.p){toast('Hai già catturato entrambi i Prismic!');return}if(n.d>58){toast('Avvicinati al Prismic.');return}n.p.caught=true;document.getElementById('count').textContent=`PRISMIC ${prisms.filter(p=>p.caught).length}/2`;document.getElementById('micon').textContent=n.p.icon;document.getElementById('mtitle').textContent=`${n.p.name} • ${n.p.type}`;document.getElementById('mtext').textContent=`Catturato! ${n.p.name} è un Prismic di elemento ${n.p.type.toLowerCase()}.`;document.getElementById('modal').style.display='block'}
+function action(){const n=nearest();if(n.p&&n.d<95){toast(`${n.p.name}: elemento ${n.p.type}. Usa PRISMA!`);return}const tx=Math.floor(player.x/TILE),ty=Math.floor(player.y/TILE);if(tx<28)toast('Porto di Livorno • moli e case sul mare.');else if(tx<59)toast('Piazza della Repubblica • il cuore della città.');else toast('Fortezza Vecchia • mura storiche sul porto.')}
+button('prisma',catchIt);button('action',action);button('continue',()=>document.getElementById('modal').style.display='none');
+
+function rnd(a){return ((a*9301+49297)%233280)/233280}
+function drawTile(x,y,t){
+ const px=x*TILE,py=y*TILE;
+ let base='#6b9a61';
+ if(t==='sea')base='#3d8ea1'; if(t==='beach')base='#d5bd7f';if(t==='road')base='#b8b0a2';if(t==='plaza')base='#c8c1b3';if(t==='pier')base='#765e4b';if(t==='wall')base='#81786b';if(t==='fort')base='#9a917e';if(t==='fortfloor')base='#a99f89';if(t==='house')base='#cbb28d';if(t==='tree')base='#6b9a61';
+ g.fillStyle=base;g.fillRect(px,py,TILE,TILE);
+ // pixel-art texture
+ if(t==='grass'){g.fillStyle='#5e8b56';for(let i=0;i<3;i++){let q=Math.floor(rnd(x*71+y*17+i)*28);g.fillRect(px+q,py+((q*3)%28),2,4)}}
+ if(t==='sea'){g.fillStyle='#67b4bc';g.fillRect(px+5,py+9,13,2);g.fillRect(px+17,py+20,10,2)}
+ if(t==='road'||t==='plaza'){g.fillStyle='#aaa397';g.fillRect(px+4,py+5,2,2);g.fillRect(px+23,py+23,2,2)}
+ if(t==='pier'){g.fillStyle='#a48665';g.fillRect(px+2,py+4,28,2);g.fillRect(px+8,py+25,3,7);g.fillRect(px+23,py+25,3,7)}
+ if(t==='wall'){g.fillStyle='#5f584f';g.fillRect(px,py+25,32,7);g.fillStyle='#b2aa9a';g.fillRect(px+4,py+4,24,4)}
+ if(t==='fortfloor'){g.fillStyle='#8b806e';g.fillRect(px+3,py+3,26,2);g.fillRect(px+3,py+18,26,2)}
+}
+function drawHouse(h){
+ const x=h.x*TILE,y=h.y*TILE,w=h.w*TILE,hh=h.h*TILE;
+ g.fillStyle='#0004';g.fillRect(x+4,y+8,w,hh);
+ g.fillStyle=['#d8bf95','#c5d0bd','#dfb38f'][h.roof];g.fillRect(x,y+12,w,hh-12);
+ g.fillStyle=['#87514a','#5a6d59','#6c6570'][h.roof];
+ g.beginPath();g.moveTo(x-5,y+15);g.lineTo(x+w/2,y-9);g.lineTo(x+w+5,y+15);g.closePath();g.fill();
+ // chimneys
+ if(h.roof===0){g.fillStyle='#795a4d';g.fillRect(x+w*.68,y-15,8,15)}
+ g.fillStyle='#8db2b9';g.fillRect(x+12,y+27,14,11);g.fillRect(x+w-28,y+27,14,11);
+ g.fillStyle='#6a4839';g.fillRect(x+w/2-7,y+hh-27,14,27);
+ // awning
+ g.fillStyle='#e6e1d3';g.fillRect(x+8,y+23,22,4);
+}
+function drawDecor(d){
+ const x=d.x*TILE+16,y=d.y*TILE+16;
+ if(d.t==='tree'){g.fillStyle='#4b6944';g.fillRect(x-3,y+8,6,13);g.fillStyle='#2e6246';g.fillRect(x-13,y-10,26,21);g.fillStyle='#4f8a55';g.fillRect(x-8,y-18,17,9);g.fillStyle='#7baa5e';g.fillRect(x-5,y-14,8,6)}
+ if(d.t==='lamp'){g.fillStyle='#4d4b45';g.fillRect(x-2,y-13,4,25);g.fillStyle='#f8dfa0';g.fillRect(x-5,y-18,10,7)}
+ if(d.t==='statue'){g.fillStyle='#74746c';g.fillRect(x-4,y-12,8,22);g.fillRect(x-9,y+10,18,4);g.fillStyle='#929187';g.fillRect(x-6,y-19,12,8)}
+ if(d.t==='fountain'){g.fillStyle='#8e999b';g.fillRect(x-18,y-5,36,10);g.fillStyle='#4e9aaa';g.fillRect(x-12,y-2,24,5);g.fillStyle='#d2edf0';g.fillRect(x-1,y-25,2,20)}
+}
+function drawPrism(p){
+ p.phase+=.04;const x=p.x,y=p.y+Math.sin(p.phase)*3;
+ g.fillStyle='#0004';g.fillRect(x-15,y+17,30,5);
+ if(p.type==='ACQUA'){
+  g.fillStyle=p.c1;g.strokeStyle=p.c2;g.lineWidth=3;g.beginPath();g.moveTo(x,y-22);g.lineTo(x+21,y);g.lineTo(x,y+22);g.lineTo(x-21,y);g.closePath();g.fill();g.stroke();
+  g.fillStyle='#17495a';g.fillRect(x-8,y-4,5,5);g.fillRect(x+3,y-4,5,5);g.fillRect(x-5,y+8,10,3)
+ }else{
+  g.fillStyle=p.c1;g.strokeStyle=p.c2;g.lineWidth=3;g.beginPath();g.roundRect(x-20,y-18,40,40,10);g.fill();g.stroke();
+  g.fillStyle=p.c2;g.beginPath();g.moveTo(x-10,y-16);g.lineTo(x-25,y-32);g.lineTo(x-20,y-5);g.fill();g.beginPath();g.moveTo(x+10,y-16);g.lineTo(x+25,y-32);g.lineTo(x+20,y-5);g.fill();
+  g.fillStyle='#285a35';g.fillRect(x-9,y-3,5,5);g.fillRect(x+4,y-3,5,5)
+ }
+ g.fillStyle='#fff';g.font='bold 11px system-ui';g.textAlign='center';g.fillText(p.name,x,y+39)
+}
+function drawPlayer(){
+ const x=player.x,y=player.y;
+ g.fillStyle='#0005';g.fillRect(x-11,y+10,22,5);
+ g.fillStyle='#334f7e';g.fillRect(x-10,y-1,20,19);
+ g.fillStyle='#e8b58e';g.fillRect(x-9,y-18,18,17);
+ g.fillStyle='#27354c';g.fillRect(x-11,y-22,22,7);g.fillRect(x-7,y-26,14,5);
+ g.fillStyle='#f2f0e7';g.fillRect(x-7,y+2,14,8);
+}
+function loop(){
+ let dx=joy.x,dy=joy.y;
+ if(keys.a||keys.arrowleft)dx-=1;if(keys.d||keys.arrowright)dx+=1;if(keys.w||keys.arrowup)dy-=1;if(keys.s||keys.arrowdown)dy+=1;
+ const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}if(l>.08)move(dx*player.speed,dy*player.speed);
+ cam.x=Math.max(0,Math.min(WORLD_W-vw,player.x-vw/2));cam.y=Math.max(0,Math.min(WORLD_H-vh,player.y-vh/2));
+ g.clearRect(0,0,vw,vh);g.save();g.translate(-Math.round(cam.x),-Math.round(cam.y));
+ for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)drawTile(x,y,map[y][x]);
+ for(const h of houses)drawHouse(h);for(const d of deco)drawDecor(d);for(const p of prisms)if(!p.caught)drawPrism(p);drawPlayer();
+ g.restore();
+ const tx=Math.floor(player.x/TILE);document.getElementById('zone').textContent=tx<28?'PORTO':tx<59?'PIAZZA DELLA REPUBBLICA':'FORTEZZA VECCHIA';
+ requestAnimationFrame(loop)
+}
+toast('Benvenuto a Livorno! Usa il pad per muoverti.',2200);loop();
+</script>
+</body>
+</html>
