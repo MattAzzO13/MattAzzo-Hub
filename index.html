@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#18201d">
+<title>PRISMA — Livorno Città 01 • v0.4</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#18201d;color:#fff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated}
+#hud{position:fixed;top:max(10px,env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;z-index:5;pointer-events:none}
+.badge{background:#111c25ee;border:2px solid #9ba5ad;border-radius:11px;padding:7px 11px;color:#fff;font-weight:900;letter-spacing:.5px;box-shadow:3px 3px 0 #0006}
+.small{font-size:10px;opacity:.72;font-weight:700}
+#menuBtn{position:fixed;right:12px;top:max(82px,calc(env(safe-area-inset-top) + 68px));z-index:8;border:2px solid #aeb8c0;background:#15222d;color:#fff;border-radius:12px;padding:10px 13px;font-weight:900;box-shadow:3px 3px 0 #0007}
+#toast{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);background:#111c25ee;border:2px solid #b7c0c7;border-radius:10px;padding:10px 14px;z-index:15;font-weight:800;display:none;max-width:88vw;text-align:center}
+#controls{position:fixed;left:0;right:0;bottom:max(14px,env(safe-area-inset-bottom));height:142px;z-index:6;pointer-events:none}
+#joy{position:absolute;left:18px;bottom:0;width:132px;height:132px;border-radius:50%;border:3px solid #e6ebee99;background:#18232d66;pointer-events:auto}
+#stick{position:absolute;left:35px;top:35px;width:62px;height:62px;border-radius:50%;background:#c7cdd199;border:3px solid #f7fafb;box-shadow:0 3px 0 #0005}
+.actions{position:absolute;right:15px;bottom:12px;display:flex;gap:10px;pointer-events:auto}
+.actions button,#battleActions button{border:2px solid #b8c2ca;background:#152332f2;color:#fff;border-radius:14px;min-width:112px;height:54px;font-weight:950;font-size:15px;box-shadow:3px 4px 0 #0008}
+#modal,#menu,#battle{position:fixed;inset:0;background:#0c1218eF;z-index:20;display:none}
+#professorModal{position:fixed;inset:0;background:#0c1218eF;z-index:25;display:none}
+.professorPanel{text-align:center}
+.profPortrait{width:92px;height:92px;margin:0 auto 8px;border:3px solid #b8c2ca;background:#263640;border-radius:10px;display:grid;place-items:center;font-size:54px;image-rendering:pixelated}
+.starterChoices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.starterChoices button{margin:0;min-height:72px;font-size:14px}
+.starterChoices small{opacity:.75}
+
+.panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,560px);max-height:84vh;overflow:auto;background:#17232d;border:3px solid #aab4bd;border-radius:16px;box-shadow:7px 9px 0 #0008;padding:18px}
+.panel h2{margin:0 0 6px;font-size:24px}
+.panel p{margin:7px 0;color:#d3dbe0}
+.panel button{margin-top:12px;border:2px solid #aab4bd;background:#223342;color:#fff;border-radius:11px;padding:11px 16px;font-weight:900}
+.menuTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.menuTabs button{margin:0;background:#223342;color:#fff;border:2px solid #667581;border-radius:10px;padding:10px;font-weight:900}.menuTabs button.active{background:#355b6d;border-color:#d8e2e8}.menuGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.prismicCard{background:#101a22;border:2px solid #667581;border-radius:12px;padding:10px;display:flex;gap:10px;align-items:center}
+.spriteIcon{width:54px;height:54px;display:grid;place-items:center;font-size:30px;background:#263640;border-radius:10px}
+.statbar{height:8px;background:#26333c;border-radius:5px;overflow:hidden;margin-top:5px}
+.statbar i{display:block;height:100%;background:#8ab56e}
+#battle .panel{width:min(94vw,620px);padding:12px}
+.battleScene{height:330px;position:relative;overflow:hidden;border-radius:11px;border:2px solid #64727c;background:#7d9670}
+.battleGround{position:absolute;inset:48% 0 0;background:#657951}
+.battleMonster{position:absolute;right:14%;top:22%;width:110px;height:110px;display:grid;place-items:center;font-size:72px}
+.battlePlayer{position:absolute;left:12%;bottom:12%;width:100px;height:100px;display:grid;place-items:center;font-size:68px}
+.hpbox{position:absolute;background:#17232de8;border:2px solid #d0d7db;border-radius:10px;padding:7px;min-width:155px}
+.hpbox.enemy{right:8px;top:8px}.hpbox.player{left:8px;bottom:8px}
+.hp{height:9px;background:#303b41;border-radius:6px;overflow:hidden}.hp i{display:block;height:100%;background:#7db56a}
+#battleMsg{min-height:40px;padding:9px 2px;font-weight:800}
+#battleActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#battleActions button{min-width:0;height:48px;font-size:13px}
+@media(max-width:390px){.actions button{min-width:94px}.badge{padding:6px 8px;font-size:13px}.small{font-size:9px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="badge"><div id="zone">PORTO</div><div class="small">LIVORNO • CITTÀ 01</div></div>
+  <div class="badge" id="count">PRISMIC 0/2</div>
+</div>
+<button id="menuBtn">☰ MENU</button>
+<div id="toast"></div>
+
+<div id="controls">
+  <div id="joy"><div id="stick"></div></div>
+  <div class="actions"><button id="action">AZIONE</button><button id="prisma">PRISMA</button></div>
+</div>
+
+<div id="modal">
+ <div class="panel"><h2 id="mtitle">PRISMIC</h2><p id="mtext"></p><button id="continue">CONTINUA</button></div>
+</div>
+
+<div id="professorModal">
+ <div class="panel professorPanel">
+  <div class="profPortrait">👨‍🔬</div>
+  <h2 id="profTitle">PROF. ELIO</h2>
+  <p id="profText">Benvenuto, giovane esploratore. Io sono il Prof. Elio e studio i Prismic, creature nate dall’energia dei prismi.</p>
+  <div id="starterChoices" class="starterChoices" style="display:none">
+   <button data-starter="Marell">🔷 MARELL<br><small>ACQUA • equilibrato</small></button>
+   <button data-starter="Verdin">🌿 VERDIN<br><small>ERBA • resistente</small></button>
+  </div>
+  <button id="profContinue">CONTINUA</button>
+ </div>
+</div>
+<div id="menu">
+ <div class="panel">
+  <h2>DISPOSITIVO PRISMA</h2>
+  <div class="menuTabs"><button id="tabTeam" class="active">SQUADRA</button><button id="tabDex">PRISMACON</button></div>
+  <p id="menuSub">I tuoi Prismic attualmente in squadra.</p>
+  <div class="menuGrid" id="collection"></div>
+  <button id="closeMenu">CHIUDI</button>
+ </div>
+</div>
+
+<div id="battle">
+ <div class="panel">
+  <div class="battleScene">
+   <div class="battleGround"></div>
+   <div class="hpbox enemy"><b id="enemyName">Marell</b><br><small id="enemyType">ACQUA • Lv. 2</small><div class="hp"><i id="enemyHP"></i></div></div>
+   <div class="battleMonster" id="enemySprite">💧</div>
+   <div class="battlePlayer">🔷</div>
+   <div class="hpbox player"><b>LUMINIX</b><br><small>IL TUO PRISMIC</small><div class="hp"><i id="playerHP"></i></div></div>
+  </div>
+  <div id="battleMsg">Un Prismic selvatico è apparso!</div>
+  <div id="battleActions">
+   <button data-act="attack">ATTACCO</button>
+   <button data-act="capture">PRISMA</button>
+   <button data-act="run">FUGA</button>
+   <button data-act="inspect">ANALIZZA</button>
+  </div>
+ </div>
+</div>
+
+<script>
+const c=document.getElementById('game'),g=c.getContext('2d');
+let dpr=Math.min(devicePixelRatio||1,2),vw=innerWidth,vh=innerHeight;
+function resize(){vw=innerWidth;vh=innerHeight;dpr=Math.min(devicePixelRatio||1,2);c.width=vw*dpr;c.height=vh*dpr;c.style.width=vw+'px';c.style.height=vh+'px';g.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+
+const TILE=32,COLS=86,ROWS=29,WORLD_W=COLS*TILE,WORLD_H=ROWS*TILE;
+const map=Array.from({length:ROWS},()=>Array(COLS).fill('grass'));
+const at=(x,y,v)=>{if(x>=0&&x<COLS&&y>=0&&y<ROWS)map[y][x]=v};
+const fill=(x,y,w,h,v)=>{for(let j=y;j<y+h;j++)for(let i=x;i<x+w;i++)at(i,j,v)};
+fill(0,0,COLS,6,'sea');fill(0,6,COLS,2,'beach');fill(0,17,COLS,5,'road');fill(37,8,4,20,'road');fill(43,10,14,12,'plaza');
+fill(2,8,24,2,'pier');fill(14,8,2,9,'pier');fill(20,8,2,9,'pier');
+fill(66,6,18,2,'wall');fill(66,6,2,13,'wall');fill(82,6,2,13,'wall');fill(66,17,18,2,'wall');fill(70,9,10,6,'fort');
+for(let y=9;y<15;y++)for(let x=70;x<80;x++)at(x,y,'fortfloor');
+
+const houses=[];
+function house(x,y,w=3,h=2,roof=0){for(let j=0;j<h;j++)for(let i=0;i<w;i++)at(x+i,y+j,'house');houses.push({x,y,w,h,roof})}
+house(3,10,4,2,0);house(8,11,3,2,1);house(25,10,4,2,2);house(30,12,3,2,0);
+house(2,20,4,2,1);house(8,20,3,2,2);house(29,8,4,2,2);house(34,10,3,2,0);house(59,9,4,2,1);house(61,14,3,2,2);
+house(44,23,4,2,0);house(50,23,3,2,1);house(57,23,4,2,2);house(68,19,4,2,1);house(74,19,3,2,0);house(79,20,3,2,2);
+// Studio del Professore: edificio principale della prima sequenza narrativa.
+house(45,11,4,3,2);
+const professor={x:47*TILE,y:13*TILE,name:'PROF. ELIO',seen:false};
+
+
+const deco=[];
+function tree(x,y){if(map[y]?.[x]!=='sea'&&map[y]?.[x]!=='pier'){at(x,y,'tree');deco.push({x,y,t:'tree'})}}
+for(const p of [[2,8],[28,8],[32,8],[40,8],[42,8],[60,8],[64,8],[27,16],[33,16],[42,15],[58,16],[62,18],[65,20],[70,22],[76,22],[83,22],[5,24],[12,24],[24,24],[32,24],[40,24],[64,24],[82,24]])tree(...p);
+[[47,16,'fountain'],[41,19,'statue'],[58,19,'statue'],[5,17,'lamp'],[24,17,'lamp'],[64,17,'lamp']].forEach(([x,y,t])=>deco.push({x,y,t}));
+const solid=new Set(['house','tree','wall','fort']);
+const player={x:6*TILE,y:7*TILE,r:9,speed:2.6};
+let scene='house';
+const cam={x:0,y:0};
+
+const species={
+ Marell:{name:'Marell',type:'ACQUA',icon:'💧',max:34,atk:8,def:5,capture:0.46,color:'#4fb7d0',desc:'Prismic d’acqua che vive vicino ai moli.'},
+ Verdin:{name:'Verdin',type:'ERBA',icon:'🌿',max:38,atk:7,def:6,capture:0.40,color:'#6cac65',desc:'Prismic d’erba che cresce nei giardini della città.'}
+};
+const wild=[
+ {id:'marell',species:'Marell',x:18*TILE,y:14*TILE,phase:0,caught:false},
+ {id:'verdin',species:'Verdin',x:53*TILE,y:17*TILE,phase:1,caught:false}
+];
+const saveKey='prisma_livorno_v04';
+let saved={};
+try{saved=JSON.parse(localStorage.getItem(saveKey)||'{}')}catch(e){saved={}};
+for(const w of wild){w.caught=!!saved[w.id];w.encountered=!!(saved.encountered&&saved.encountered[w.species]);}
+const encountered=new Set(saved.encountered?Object.keys(saved.encountered):[]);
+const team=[];
+for(const id of Object.keys(saved))if(saved[id]&&species[saved[id]])team.push({...species[saved[id]],hp:species[saved[id]].max,max:species[saved[id]].max,level:2});
+let professorDone=!!saved.professorDone;
+let starterChoice=null;
+if(professorDone && team.length===0){
+  // Compatibilità con vecchi salvataggi: se il professore era già completato, nessun regalo duplicato.
+  professorDone=false;
+}
+
+
+function persist(){
+ const s={};wild.filter(w=>w.caught).forEach(w=>s[w.id]=w.species);s.professorDone=professorDone;s.encountered={};encountered.forEach(k=>s.encountered[k]=true);localStorage.setItem(saveKey,JSON.stringify(s));updateCount();renderCollection()
+}
+function updateCount(){document.getElementById('count').textContent=`PRISMIC ${wild.filter(w=>w.caught).length}/${wild.length}`}
+updateCount();
+
+function tileSolid(px,py){const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);if(tx<0||ty<0||tx>=COLS||ty>=ROWS)return true;return solid.has(map[ty][tx])}
+function canMove(x,y){const r=player.r;return !tileSolid(x-r,y-r)&&!tileSolid(x+r,y-r)&&!tileSolid(x-r,y+r)&&!tileSolid(x+r,y+r)}
+function move(dx,dy){let nx=player.x+dx,ny=player.y+dy;if(canMove(nx,player.y))player.x=nx;if(canMove(player.x,ny))player.y=ny;player.x=Math.max(12,Math.min(WORLD_W-12,player.x));player.y=Math.max(6*TILE+12,Math.min(WORLD_H-12,player.y))}
+function moveInterior(dx,dy){let nx=player.x+dx,ny=player.y+dy;const minX=2*TILE+12,maxX=13*TILE-12,minY=2*TILE+12,maxY=9*TILE-12;if(nx>=minX&&nx<=maxX&&ny>=minY&&ny<=maxY){player.x=nx;player.y=ny}}
+
+const joy={x:0,y:0,active:false,id:null},joyEl=document.getElementById('joy'),stick=document.getElementById('stick');
+function setJoy(x,y){const r=joyEl.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.30;let dx=x-cx,dy=y-cy,len=Math.hypot(dx,dy);if(len>max){dx=dx/len*max;dy=dy/len*max}joy.x=dx/max;joy.y=dy/max;stick.style.transform=`translate(${dx}px,${dy}px)`}
+function resetJoy(){joy.active=false;joy.id=null;joy.x=0;joy.y=0;stick.style.transform='translate(0,0)'}
+joyEl.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];joy.active=true;joy.id=t.identifier;setJoy(t.clientX,t.clientY)},{passive:false});
+joyEl.addEventListener('touchmove',e=>{e.preventDefault();if(!joy.active)return;for(const t of e.changedTouches)if(t.identifier===joy.id){setJoy(t.clientX,t.clientY);break}},{passive:false});
+joyEl.addEventListener('touchend',e=>{e.preventDefault();resetJoy()},{passive:false});
+joyEl.addEventListener('touchcancel',resetJoy);
+
+function rnd(a){return ((a*9301+49297)%233280)/233280}
+function drawInterior(){
+ const w=18*TILE,h=12*TILE;
+ g.fillStyle='#b89b79';g.fillRect(0,0,w,h);
+ g.fillStyle='#7d604c';g.fillRect(0,0,w,2*TILE);g.fillRect(0,10*TILE,w,2*TILE);g.fillRect(0,0,2*TILE,h);g.fillRect(16*TILE,0,2*TILE,h);
+ // floor planks
+ for(let y=2*TILE;y<10*TILE;y+=TILE){g.fillStyle='#c9ad88';g.fillRect(2*TILE,y,14*TILE,TILE-2);g.fillStyle='#a98c6b';g.fillRect(2*TILE,y+TILE-3,14*TILE,2)}
+ // rug
+ g.fillStyle='#6e5b67';g.fillRect(5*TILE,5*TILE,8*TILE,3*TILE);g.fillStyle='#a99a83';g.fillRect(5*TILE+8,5*TILE+8,8*TILE-16,3*TILE-16);
+ // bed
+ g.fillStyle='#5c4c4a';g.fillRect(3*TILE,3*TILE,3*TILE,2*TILE);g.fillStyle='#e6ded0';g.fillRect(3*TILE+5,3*TILE+6,3*TILE-10,TILE);g.fillStyle='#7b8e9a';g.fillRect(3*TILE+6,4*TILE+5,2*TILE,10);
+ // desk
+ g.fillStyle='#654b3d';g.fillRect(11*TILE,3*TILE,4*TILE,1*TILE);g.fillRect(12*TILE,4*TILE,4,2*TILE);g.fillRect(14*TILE,4*TILE,4,2*TILE);
+ // small prism on desk
+ g.fillStyle='#d9f6ff';g.beginPath();g.moveTo(13*TILE+5,3*TILE+3);g.lineTo(13*TILE+13,3*TILE+3);g.lineTo(13*TILE+16,3*TILE+10);g.lineTo(13*TILE+9,3*TILE+15);g.lineTo(13*TILE+2,3*TILE+10);g.closePath();g.fill();
+ // window
+ g.fillStyle='#526f7b';g.fillRect(7*TILE,1*TILE+8,4*TILE,1*TILE+10);g.fillStyle='#9fc7cc';g.fillRect(7*TILE+4,1*TILE+12,4*TILE-8,1*TILE+2);
+ // door/exit
+ g.fillStyle='#553e38';g.fillRect(8*TILE,9*TILE,2*TILE,TILE);g.fillStyle='#c9ad88';g.fillRect(8*TILE+TILE-5,9*TILE+16,3,3);
+ // title
+ g.fillStyle='#fff';g.font='bold 12px monospace';g.fillText('CASA DEL PROTAGONISTA',10,20);
+}
+function drawTile(tx,ty,t){
+ const px=tx*TILE,py=ty*TILE;
+ let base='#667f5c';if(t==='sea')base='#397d8d';if(t==='beach')base='#cbb783';if(t==='road')base='#a9a49a';if(t==='plaza')base='#bcb7ad';if(t==='pier')base='#695645';if(t==='wall')base='#6f6b65';if(t==='fort')base='#888078';if(t==='fortfloor')base='#9c9385';if(t==='house')base='#bda47f';if(t==='tree')base='#667f5c';
+ g.fillStyle=base;g.fillRect(px,py,TILE,TILE);
+ if(t==='grass'){g.fillStyle='#587651';for(let i=0;i<3;i++){let q=Math.floor(rnd(tx*71+ty*17+i)*27);g.fillRect(px+q,py+((q*3)%27),2,4)}}
+ if(t==='sea'){g.fillStyle='#55a3ae';g.fillRect(px+3,py+9,14,2);g.fillRect(px+17,py+20,11,2)}
+ if(t==='beach'){g.fillStyle='#bca76f';g.fillRect(px+4,py+6,2,2);g.fillRect(px+20,py+23,2,2)}
+ if(t==='road'||t==='plaza'){g.fillStyle='#98948c';g.fillRect(px+4,py+5,2,2);g.fillRect(px+23,py+23,2,2)}
+ if(t==='pier'){g.fillStyle='#927657';g.fillRect(px+2,py+4,28,3);g.fillStyle='#4e4036';g.fillRect(px+8,py+25,3,7);g.fillRect(px+23,py+25,3,7)}
+ if(t==='wall'){g.fillStyle='#514e4a';g.fillRect(px,py+25,32,7);g.fillStyle='#96908a';g.fillRect(px+4,py+4,24,4)}
+ if(t==='fortfloor'){g.fillStyle='#7f776c';g.fillRect(px+3,py+3,26,2);g.fillRect(px+3,py+18,26,2)}
+}
+function drawHouse(h){
+ const px=h.x*TILE,py=h.y*TILE,w=h.w*TILE,hh=h.h*TILE;
+ // shadow
+ g.fillStyle='#0005';g.fillRect(px+5,py+13,w,hh);
+ const wall=['#d6b28b','#c9c6aa','#d2a68b'][h.roof];
+ const roof=['#5b536b','#4d6670','#65586e'][h.roof];
+ // roof dark outline
+ g.fillStyle='#3d3948';
+ g.beginPath();g.moveTo(px-8,py+17);g.lineTo(px+w/2,py-10);g.lineTo(px+w+8,py+17);g.closePath();g.fill();
+ // roof body with stepped pixel edge
+ g.fillStyle=roof;
+ g.beginPath();g.moveTo(px-4,py+15);g.lineTo(px+w/2,py-7);g.lineTo(px+w+4,py+15);g.closePath();g.fill();
+ g.fillStyle='#8d8294';g.fillRect(px+8,py+8,w-16,3);
+ // walls
+ g.fillStyle=wall;g.fillRect(px,py+15,w,hh-15);
+ // horizontal foundation/shadow
+ g.fillStyle='#6d6b5d';g.fillRect(px,py+hh-5,w,5);
+ // door
+ g.fillStyle='#5b443a';g.fillRect(px+w/2-7,py+hh-29,14,29);
+ g.fillStyle='#a98a65';g.fillRect(px+w/2+3,py+hh-15,2,2);
+ // windows with awnings
+ g.fillStyle='#efe5d1';g.fillRect(px+7,py+25,19,4);g.fillRect(px+w-26,py+25,19,4);
+ g.fillStyle='#8eb7bd';g.fillRect(px+10,py+29,13,10);g.fillRect(px+w-23,py+29,13,10);
+ g.fillStyle='#657b80';g.fillRect(px+15,py+29,2,10);g.fillRect(px+w-19,py+29,2,10);
+ // chimney
+ g.fillStyle='#6c4d45';g.fillRect(px+w*.70,py-14,7,14);
+ g.fillStyle='#4e4543';g.fillRect(px+w*.70-2,py-16,11,3);
+ // small side trim
+ g.fillStyle='#f0d4ad';g.fillRect(px+2,py+15,3,hh-21);g.fillRect(px+w-5,py+15,3,hh-21);
+}
+function drawDecor(d){
+ const px=d.x*TILE+16,py=d.y*TILE+16;
+ if(d.t==='tree'){g.fillStyle='#0004';g.fillRect(px-4,py+8,8,14);g.fillStyle='#315b3e';g.fillRect(px-14,py-11,28,22);g.fillStyle='#4f7b4b';g.fillRect(px-9,py-19,18,9);g.fillStyle='#6b9655';g.fillRect(px-5,py-15,8,6)}
+ if(d.t==='lamp'){g.fillStyle='#4b4943';g.fillRect(px-2,py-13,4,25);g.fillStyle='#e8d49b';g.fillRect(px-5,py-18,10,7)}
+ if(d.t==='statue'){g.fillStyle='#6d6d68';g.fillRect(px-4,py-12,8,22);g.fillRect(px-9,py+10,18,4);g.fillStyle='#8a8a82';g.fillRect(px-6,py-19,12,8)}
+ if(d.t==='fountain'){g.fillStyle='#7c8586';g.fillRect(px-18,py-5,36,10);g.fillStyle='#438998';g.fillRect(px-12,py-2,24,5);g.fillStyle='#cde7e8';g.fillRect(px-1,py-25,2,20)}
+}
+function drawProfessor(){
+ const px=professor.x,py=professor.y;
+ g.fillStyle='#0006';g.fillRect(px-12,py+14,24,5);
+ // coat
+ g.fillStyle='#f0eee5';g.fillRect(px-11,py-1,22,22);
+ g.fillStyle='#6b7180';g.fillRect(px-3,py,6,22);
+ g.fillStyle='#d4b08e';g.fillRect(px-9,py-18,18,17);
+ // hair
+ g.fillStyle='#4a403c';g.fillRect(px-10,py-23,20,7);g.fillRect(px-12,py-19,4,8);
+ // glasses
+ g.fillStyle='#27313b';g.fillRect(px-8,py-12,6,4);g.fillRect(px+2,py-12,6,4);g.fillRect(px-2,py-11,4,2);
+ // shoes
+ g.fillStyle='#303844';g.fillRect(px-11,py+20,9,5);g.fillRect(px+2,py+20,9,5);
+ g.fillStyle='#fff';g.font='bold 10px monospace';g.textAlign='center';g.fillText(professor.name,px,py+38);
+}
+function drawWild(w){
+ if(w.caught)return;
+ w.phase+=.035;const s=species[w.species],px=w.x,py=w.y+Math.sin(w.phase)*3;
+ g.fillStyle='#0005';g.fillRect(px-20,py+20,40,5);
+ g.strokeStyle='#dfe9e5';g.lineWidth=3;
+ if(w.species==='Marell'){
+   g.fillStyle=s.color;g.beginPath();g.moveTo(px,py-24);g.lineTo(px+18,py-5);g.lineTo(px+22,py+9);g.lineTo(px+8,py+23);g.lineTo(px-12,py+19);g.lineTo(px-22,py+3);g.lineTo(px-16,py-13);g.closePath();g.fill();g.stroke();
+   g.fillStyle='#bce8ee';g.fillRect(px-9,py-5,6,6);g.fillRect(px+4,py-5,6,6);g.fillRect(px-5,py+8,10,3);
+ }else{
+   g.fillStyle=s.color;g.beginPath();g.moveTo(px,py-25);g.lineTo(px+19,py-10);g.lineTo(px+18,py+13);g.lineTo(px,py+23);g.lineTo(px-19,py+13);g.lineTo(px-19,py-10);g.closePath();g.fill();g.stroke();
+   g.fillStyle='#dff1c8';g.fillRect(px-10,py-5,6,6);g.fillRect(px+4,py-5,6,6);g.fillRect(px-5,py+9,10,3);
+ }
+ g.fillStyle='#fff';g.font='bold 10px monospace';g.textAlign='center';g.fillText(s.name,px,py+39);
+}
+function drawPlayer(){
+ const px=player.x,py=player.y;
+ g.fillStyle='#0006';g.fillRect(px-11,py+12,22,5);
+ // legs
+ g.fillStyle='#2f3544';g.fillRect(px-9,py+14,7,10);g.fillRect(px+2,py+14,7,10);
+ g.fillStyle='#e4e2d7';g.fillRect(px-11,py+22,9,4);g.fillRect(px+2,py+22,9,4);
+ // jacket/backpack
+ g.fillStyle='#355b8b';g.fillRect(px-11,py-2,22,19);
+ g.fillStyle='#243e61';g.fillRect(px-13,py+1,5,14);
+ g.fillStyle='#d9e0e4';g.fillRect(px-7,py+1,14,8);
+ // face
+ g.fillStyle='#e3b18a';g.fillRect(px-9,py-18,18,16);
+ // hair/cap silhouette
+ g.fillStyle='#283343';g.fillRect(px-11,py-23,22,7);g.fillRect(px-8,py-26,16,4);
+ // face pixels
+ g.fillStyle='#3d3432';g.fillRect(px-6,py-11,3,3);g.fillRect(px+3,py-11,3,3);
+}
+function nearestWild(){let best=null,bd=1e9;for(const w of wild)if(!w.caught){const d=Math.hypot(player.x-w.x,player.y-w.y);if(d<bd){bd=d;best=w}}return{w:best,d:bd}}
+
+function toast(s,ms=1800){const el=document.getElementById('toast');el.textContent=s;el.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>el.style.display='none',ms)}
+
+function openMenu(){setMenuTab('team');document.getElementById('menu').style.display='block'}
+function closeMenu(){document.getElementById('menu').style.display='none'}
+document.getElementById('menuBtn').onclick=openMenu;document.getElementById('closeMenu').onclick=closeMenu;
+let menuTab='team';
+function renderCollection(){
+ const box=document.getElementById('collection');box.innerHTML='';
+ if(menuTab==='team'){
+   document.getElementById('menuSub').textContent='I tuoi Prismic attualmente in squadra.';
+   if(team.length===0){box.innerHTML='<div class="prismicCard"><div class="spriteIcon">—</div><div><b>SQUADRA VUOTA</b><div class="small">Parla con il Prof. Elio.</div></div></div>';return}
+   team.forEach((s,i)=>{const div=document.createElement('div');div.className='prismicCard';div.innerHTML=`<div class="spriteIcon">${s.icon}</div><div><b>${i+1}. ${s.name}</b><div class="small">${s.type} • Lv. ${s.level||2}</div><div class="small">HP ${s.hp}/${s.max}</div><div class="statbar"><i style="width:${Math.max(0,s.hp/s.max*100)}%"></i></div></div>`;box.appendChild(div)})
+ }else{
+   document.getElementById('menuSub').textContent='Database Prismic: incontrati, catturati e ancora sconosciuti.';
+   Object.keys(species).forEach(key=>{const s=species[key],seen=encountered.has(key),got=wild.some(w=>w.species===key&&w.caught)||team.some(t=>t.name===key);const div=document.createElement('div');div.className='prismicCard';div.innerHTML=seen?`<div class="spriteIcon">${s.icon}</div><div><b>${s.name}</b><div class="small">${s.type}${got?' • CATTURATO':' • INCONTRATO'}</div><div class="small">${s.desc}</div></div>`:`<div class="spriteIcon">?</div><div><b>???</b><div class="small">DATI SCONOSCIUTI</div><div class="small">Incontra questo Prismic per scoprirne l’identità.</div></div>`;box.appendChild(div)})
+ }
+}
+function setMenuTab(tab){menuTab=tab;document.getElementById('tabTeam').classList.toggle('active',tab==='team');document.getElementById('tabDex').classList.toggle('active',tab==='dex');renderCollection()}
+document.getElementById('tabTeam').onclick=()=>setMenuTab('team');document.getElementById('tabDex').onclick=()=>setMenuTab('dex');
+function updateCount(){document.getElementById('count').textContent=`PRISMIC ${wild.filter(w=>w.caught).length}/${wild.length}`}
+
+let battle=null;
+function openBattle(w){
+ const s=species[w.species];
+ encountered.add(w.species);persist();
+ battle={w,enemy:{...s,hp:s.max},player:team[0]||{name:'LUMINIX',hp:40,max:40,atk:8,def:5,level:2}};
+ document.getElementById('enemyName').textContent=s.name;
+ document.getElementById('enemyType').textContent=`${s.type} • Lv. 2`;
+ document.getElementById('enemySprite').textContent=s.icon;
+ document.getElementById('battle').style.display='block';
+ updateBattleUI();
+ setBattleMsg(`Un ${s.name} selvatico ti sbarra la strada!`);
+}
+function setBattleMsg(s){document.getElementById('battleMsg').textContent=s}
+function updateBattleUI(){
+ if(!battle)return;
+ const e=battle.enemy,p=battle.player;
+ document.getElementById('enemyHP').style.width=Math.max(0,e.hp/e.max*100)+'%';
+ document.getElementById('playerHP').style.width=Math.max(0,p.hp/p.max*100)+'%';
+}
+function endBattle(){battle=null;document.getElementById('battle').style.display='none'}
+function attackEnemy(){
+ if(!battle)return;
+ const e=battle.enemy,p=battle.player;
+ const dmg=Math.max(2,p.atk-e.def+Math.floor(Math.random()*4));
+ e.hp=Math.max(0,e.hp-dmg);updateBattleUI();
+ if(e.hp<=0){setBattleMsg(`Hai sconfitto ${e.name}. Ora puoi catturarlo con il Prisma.`);return}
+ const back=Math.max(1,e.atk-p.def+Math.floor(Math.random()*3));p.hp=Math.max(0,p.hp-back);updateBattleUI();
+ if(p.hp<=0){setBattleMsg('Luminix è esausto. Il Prismic selvatico fugge.');setTimeout(endBattle,1000)}
+ else setBattleMsg(`${e.name} perde ${dmg} HP. Risponde con ${back} danni.`);
+}
+function captureAttempt(){
+ if(!battle)return;
+ const e=battle.enemy,s=species[battle.w.species];
+ let chance=s.capture;
+ if(e.hp<=e.max*.5)chance+=.22;
+ if(e.hp<=e.max*.25)chance+=.20;
+ if(Math.random()<chance){
+  battle.w.caught=true;
+  if(!team.some(t=>t.name===s.name))team.push({...s,hp:s.max,max:s.max,level:2});
+  persist();
+  setBattleMsg(`Il Prisma si chiude. ${s.name} è stato catturato!`);
+  setTimeout(()=>{endBattle();document.getElementById('mtitle').textContent=`${s.name} CATTURATO`;document.getElementById('mtext').textContent=`Ora ${s.name} compare nel tuo archivio Prismic.`;document.getElementById('modal').style.display='block'},900);
+ }else{
+  setBattleMsg('Il Prisma trema... ma si riapre! Il Prismic non è ancora domato.');
+  setTimeout(()=>enemyCounter(),650)
+ }
+}
+function enemyCounter(){
+ if(!battle)return;
+ const e=battle.enemy,p=battle.player,back=Math.max(1,e.atk-p.def+Math.floor(Math.random()*3));p.hp=Math.max(0,p.hp-back);updateBattleUI();
+ if(p.hp<=0){setBattleMsg('Luminix è esausto. Devi ritirarti.');setTimeout(endBattle,900)}
+ else setBattleMsg(`${e.name} reagisce e infligge ${back} danni.`);
+}
+function runBattle(){setBattleMsg('Ti allontani dal combattimento.');setTimeout(endBattle,500)}
+function inspectBattle(){if(!battle)return;const s=species[battle.w.species];setBattleMsg(`${s.name}: ${s.desc} Riduci i suoi HP per aumentare la probabilità di cattura.`)}
+document.querySelectorAll('#battleActions button').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.act;if(a==='attack')attackEnemy();if(a==='capture')captureAttempt();if(a==='run')runBattle();if(a==='inspect')inspectBattle()}));
+
+function nearProfessor(){return Math.hypot(player.x-professor.x,player.y-professor.y)<78}
+function openProfessor(){
+ const pm=document.getElementById('professorModal'), choices=document.getElementById('starterChoices');
+ pm.style.display='block'; choices.style.display='none';
+ document.getElementById('profTitle').textContent='PROF. ELIO';
+ document.getElementById('profText').textContent=professorDone
+  ? 'I Prismic reagiscono al legame con il loro allenatore. Esplora Livorno e scopri quanti ne esistono.'
+  : 'Benvenuto, giovane esploratore. Io sono il Prof. Elio. I Prismic sono creature legate ai prismi: possono vivere libere, combattere e rientrare nel loro prisma tramite l’Evocatore.';
+ document.getElementById('profContinue').style.display=professorDone?'block':'block';
+ if(!professorDone){
+   document.getElementById('profContinue').onclick=()=>{
+     document.getElementById('profText').textContent='Per iniziare il tuo viaggio, scegli uno dei miei due Prismic. Trattalo con rispetto: un buon legame vale più della forza.';
+     choices.style.display='grid';
+     document.getElementById('profContinue').style.display='none';
+   };
+ }
+}
+document.querySelectorAll('.starterChoices button').forEach(b=>b.addEventListener('click',()=>{
+ const name=b.dataset.starter,s=species[name];
+ team.length=0;team.push({...s,hp:s.max,max:s.max,level:2});
+ encountered.add(name); professorDone=true;persist();
+ document.getElementById('professorModal').style.display='none';
+ toast(`${name} si unisce alla tua squadra!`,2200);
+}));
+function action(){
+ if(scene==='house'){
+   if(player.y>8.3*TILE && player.y<9.8*TILE && player.x>7*TILE && player.x<11*TILE){scene='world';player.x=45*TILE+48;player.y=14*TILE+20;toast('Sei uscito di casa. Il laboratorio del Prof. Elio è poco più avanti.',2400);return}
+   toast('La tua casa. Il laboratorio del Prof. Elio è in città.');return
+ }
+ if(nearProfessor()){openProfessor();return}
+ const n=nearestWild();
+ if(n.w&&n.d<72){openBattle(n.w);return}
+ const tx=Math.floor(player.x/TILE);
+ if(tx<28)toast('Porto di Livorno • moli e case sul mare.');
+ else if(tx<59)toast('Piazza della Repubblica • il cuore della città.');
+ else toast('Fortezza Vecchia • mura storiche sul porto.')
+}
+function prismaButton(){
+ const n=nearestWild();
+ if(n.w&&n.d<72)toast('Prima affronta il Prismic: usa AZIONE per iniziare la lotta.');
+ else openMenu()
+}
+document.getElementById('action').addEventListener('click',action);
+document.getElementById('prisma').addEventListener('click',prismaButton);
+document.getElementById('continue').addEventListener('click',()=>document.getElementById('modal').style.display='none');
+
+let last=performance.now();
+function loop(now){
+ const dt=Math.min(40,now-last)/16.67;last=now;
+ if(document.getElementById('menu').style.display!=='block'&&document.getElementById('modal').style.display!=='block'&&document.getElementById('battle').style.display!=='block'&&document.getElementById('professorModal').style.display!=='block'){
+  let dx=joy.x,dy=joy.y;const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}
+  if(Math.abs(dx)+Math.abs(dy)>.06){if(scene==='house')moveInterior(dx*player.speed*dt,dy*player.speed*dt);else move(dx*player.speed*dt,dy*player.speed*dt);}
+ }
+ if(scene==='world'){cam.x=Math.max(0,Math.min(WORLD_W-vw,player.x-vw/2));cam.y=Math.max(0,Math.min(WORLD_H-vh,player.y-vh/2));}
+ g.clearRect(0,0,vw,vh);
+ if(scene==='house'){g.save();g.translate(Math.floor(vw/2-9*TILE),Math.floor(vh/2-6*TILE));drawInterior();drawPlayer();g.restore();}
+ else {g.save();g.translate(-Math.round(cam.x),-Math.round(cam.y));for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)drawTile(x,y,map[y][x]);for(const h of houses)drawHouse(h);for(const d of deco)drawDecor(d);for(const w of wild)drawWild(w);drawProfessor();drawPlayer();g.restore();}
+ const tx=Math.floor(player.x/TILE);document.getElementById('zone').textContent=scene==='house'?'CASA DEL PROTAGONISTA':(tx<28?'PORTO':tx<59?'PIAZZA DELLA REPUBBLICA':'FORTEZZA VECCHIA');
+ requestAnimationFrame(loop)
+}
+renderCollection();updateCount();toast('PRISMA 0.4 • Sei a casa. Esci e vai dal Prof. Elio.',3200);requestAnimationFrame(loop);
+</script>
+</body>
+</html>
