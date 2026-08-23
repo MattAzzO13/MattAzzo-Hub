@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>PRISMA — Mini Demo Mobile</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b1017;color:white;font-family:monospace;touch-action:none}
+#game{position:fixed;inset:0;width:100vw;height:100vh;image-rendering:pixelated;background:#18231c}
+canvas{width:100%;height:100%;display:block}
+#controls{position:fixed;inset:0;pointer-events:auto;touch-action:none}
+#joy{position:absolute;left:18px;bottom:22px;width:142px;height:142px;border-radius:50%;background:#ffffff22;border:2px solid #ffffff55;pointer-events:auto}
+#stick{position:absolute;left:38px;top:38px;width:62px;height:62px;border-radius:50%;background:#ffffff55;border:2px solid #fff8}
+.btn{position:absolute;border:2px solid #ffffff77;background:#152235cc;color:#fff;font:bold 13px monospace;border-radius:18px;pointer-events:auto;display:flex;align-items:center;justify-content:center;user-select:none}
+#summon{right:24px;bottom:35px;width:92px;height:58px}
+#action{right:130px;bottom:45px;width:70px;height:70px;border-radius:50%}
+#ok{right:24px;top:24px;width:62px;height:45px}
+#battleBtns{display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:15px;width:min(92vw,520px);grid-template-columns:1fr 1fr;gap:8px;pointer-events:auto}
+.batk{height:48px;background:#152235e8;border:2px solid #fff8;color:#fff;border-radius:12px;font:bold 12px monospace}
+#hint{position:absolute;pointer-events:none;top:10px;left:50%;transform:translateX(-50%);font-size:11px;background:#0008;padding:5px 8px;border-radius:8px;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="game"><canvas id="c" width="480" height="320"></canvas></div>
+<div id="controls">
+  <div id="hint">PRISMA • Mini Demo</div>
+  <div id="joy"><div id="stick"></div></div>
+  <div class="btn" id="action">AZIONE</div>
+  <div class="btn" id="summon">PRISMA</div>
+  <div class="btn" id="ok">OK</div>
+  <div id="battleBtns">
+    <button class="batk" data-a="0">SCINTILLA</button>
+    <button class="batk" data-a="1">IMPULSO</button>
+    <button class="batk" data-a="2">LAMA</button>
+    <button class="batk" data-a="3">AURORA</button>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d');x.imageSmoothingEnabled=false;
+const W=15,H=10,T=32;
+let mode='town',state='free',dialog='',toast='',toastT=0,last=0;
+const p={x:2,y:7,dir:0,summoned:false};
+const lum={name:'Luminix',hp:34,max:34,en:12,maxen:12,atk:8,def:5};
+const foe={name:'Mossfang',hp:30,max:30,atk:7,def:4};
+const maps={
+town:[
+'###############','#.............#','#..####.......#','#..#..#.......#','#..#..#.......#','#.....#.......#','#.............#','#.............#','#.............#','###############'],
+route:[
+'###############','#.............#','#..###........#','#.............#','#......###....#','#......#......#','#......#......#','#.............#','#.............#','###############']
+]};
+let joy={x:0,y:0,active:false};
+const keys={};
+function blocked(a,b){return a<0||b<0||a>=W||b>=H||maps[mode][b][a]==='#'}
+function move(dx,dy){if(state!=='free')return;let nx=p.x+dx,ny=p.y+dy;if(!blocked(nx,ny)){p.x=nx;p.y=ny;if(mode==='town'&&p.x===13&&p.y===7){mode='route';p.x=1;p.y=7;notice('Prato di Aurora');}else if(mode==='route'&&p.x===13&&p.y===7){mode='town';p.x=12;p.y=7;}}}
+setInterval(()=>{if(Math.abs(joy.x)>0.45||Math.abs(joy.y)>0.45){let dx=Math.abs(joy.x)>Math.abs(joy.y)?Math.sign(joy.x):0;let dy=dx?0:Math.sign(joy.y);move(dx,dy)}},150);
+
+function notice(s){toast=s;toastT=120}
+function summon(){if(state!=='free')return;if(!p.summoned){p.summoned=true;dialog='Appoggi il Prisma sull’Evocatore. Una luce attraversa il quadrante: Luminix appare al tuo fianco.'}else{p.summoned=false;dialog='Il Prisma richiama Luminix. La creatura diventa luce e rientra nel prisma.'}}
+function action(){
+ if(state==='dialog'){dialog='';state='free';return}
+ if(state==='battle'){return}
+ if(mode==='town'&&p.x>=4&&p.x<=6&&p.y>=2&&p.y<=4){dialog='Orologiaio: «Il Prisma non è una gabbia. È un legame. L’Evocatore permette alla creatura di attraversare il confine.»';state='dialog'}
+ else if(mode==='town'&&p.x===2&&p.y===1){dialog='Guida: «A est c’è il Prato di Aurora. Quando sei pronto, evoca Luminix.»';state='dialog'}
+ else if(mode==='route'&&p.x>=6&&p.x<=8&&p.y>=3&&p.y<=5){if(!p.summoned){dialog='Un fruscio tra l’erba... Evoca Luminix con il pulsante PRISMA.';state='dialog'}else{startBattle()}}
+}
+function startBattle(){state='battle';foe.hp=foe.max;lum.hp=lum.max;lum.en=lum.maxen;document.getElementById('battleBtns').style.display='grid';notice('Una creatura selvatica appare!')}
+function attack(i){
+ if(state!=='battle')return;
+ if(lum.en<2){notice('Energia insufficiente');return}
+ const pow=[6,8,10,13][i];lum.en-=2;
+ const dmg=Math.max(1,pow+lum.atk-foe.def+Math.floor(Math.random()*3));
+ foe.hp=Math.max(0,foe.hp-dmg);
+ if(foe.hp===0){state='win';document.getElementById('battleBtns').style.display='none';dialog='VITTORIA! Luminix ha sconfitto Mossfang. La prima prova è superata.';state='dialog';return}
+ const ed=Math.max(1,foe.atk-lum.def+Math.floor(Math.random()*3));lum.hp=Math.max(0,lum.hp-ed);
+ if(lum.hp===0){p.summoned=false;state='free';document.getElementById('battleBtns').style.display='none';notice('Luminix è esausto e rientra nel Prisma.')}
+}
+function tap(el, fn){
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); fn(e); }, {passive:false});
+  el.addEventListener('touchstart', e=>{ e.preventDefault(); fn(e); }, {passive:false});
+  el.addEventListener('click', e=>{ e.preventDefault(); fn(e); }, {passive:false});
+}
+document.querySelectorAll('.batk').forEach(b=>tap(b,()=>attack(+b.dataset.a)));
+tap(document.getElementById('summon'),summon);
+tap(document.getElementById('action'),action);
+tap(document.getElementById('ok'),()=>{if(state==='dialog')action()});
+
+function setJoy(e){let r=document.getElementById('joy').getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy;let m=Math.min(45,Math.hypot(dx,dy)),a=Math.atan2(dy,dx);joy.x=Math.cos(a)*m/45;joy.y=Math.sin(a)*m/45;document.getElementById('stick').style.transform=`translate(${joy.x*32}px,${joy.y*32}px)`}
+const j=document.getElementById('joy');
+function joyPoint(clientX,clientY){setJoy({clientX,clientY});}
+j.addEventListener('pointerdown',e=>{e.preventDefault();joy.active=true;joyPoint(e.clientX,e.clientY)},{passive:false});
+j.addEventListener('pointermove',e=>{if(joy.active){e.preventDefault();joyPoint(e.clientX,e.clientY)}},{passive:false});
+j.addEventListener('pointerup',e=>{e.preventDefault();joy.active=false;joy.x=joy.y=0;document.getElementById('stick').style.transform='translate(0,0)'},{passive:false});
+j.addEventListener('touchstart',e=>{e.preventDefault();joy.active=true;let t=e.touches[0];joyPoint(t.clientX,t.clientY)},{passive:false});
+j.addEventListener('touchmove',e=>{if(joy.active){e.preventDefault();let t=e.touches[0];joyPoint(t.clientX,t.clientY)}},{passive:false});
+j.addEventListener('touchend',e=>{e.preventDefault();joy.active=false;joy.x=joy.y=0;document.getElementById('stick').style.transform='translate(0,0)'},{passive:false});
+
+addEventListener('keydown',e=>{if(e.key===' ')summon();if(e.key==='e')action();if(e.key==='Enter'&&state==='dialog')action();if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();let d={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]}[e.key];move(...d)}});
+function rect(px,py,w,h,col){x.fillStyle=col;x.fillRect(px,py,w,h)}
+function text(s,px,py,size=12){x.fillStyle='#fff';x.font=`bold ${size}px monospace`;x.fillText(s,px,py)}
+function draw(){
+ x.clearRect(0,0,480,320);
+ if(state==='battle')drawBattle();else drawWorld();
+ if(dialog)drawDialog();
+ if(toastT>0){toastT--;rect(150,8,180,24,'#000b');text(toast,158,25,10)}
+ requestAnimationFrame(draw)
+}
+function drawWorld(){
+ // sky/ground
+ rect(0,0,480,320,'#8eb3c2');
+ for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){
+  let ch=maps[mode][y][xx],px=xx*T,py=y*T;
+  if(ch==='#'){rect(px,py,T,T,'#2f5933');rect(px+3,py+4,8,8,'#47743b');rect(px+15,py+1,7,11,'#47743b');rect(px+24,py+7,6,7,'#47743b')}
+  else{rect(px,py,T,T,'#91ad5d');rect(px+3,py+24,3,3,'#6f914c');rect(px+18,py+12,3,3,'#6f914c')}
+ }
+ // house/orologiaio
+ if(mode==='town'){rect(4*T,2*T,3*T,3*T,'#b65e4f');rect(4*T+8,2*T+12,80,7,'#e8c66b');rect(5*T+12,4*T-3,22,35,'#493c43');rect(4*T+16,2*T+5,64,5,'#743d38')}
+ // route landmark
+ if(mode==='route'){rect(7*T,3*T,3*T,3*T,'#5b7545');rect(7*T+20,3*T+12,56,10,'#806a45')}
+ // player
+ drawPlayer();
+ if(p.summoned)drawLuminix(p.x*T+5,p.y*T-2);
+ text(mode==='town'?'VILLAGGIO LUMEN':'PRATO DI AURORA',8,18,11);
+}
+function drawPlayer(){let px=p.x*T+7,py=p.y*T+5;rect(px+5,py+9,14,15,'#263b72');rect(px+6,py,12,11,'#e7b38a');rect(px+4,py,16,5,'#3a234f');rect(px+3,py+24,7,5,'#d7e7ee');rect(px+14,py+24,7,5,'#d7e7ee')}
+function drawLuminix(px,py){x.fillStyle='#d9fbff';x.beginPath();x.moveTo(px+8,py+22);x.lineTo(px+20,py+2);x.lineTo(px+32,py+22);x.lineTo(px+20,py+31);x.closePath();x.fill();x.fillStyle='#55d8ff';x.beginPath();x.moveTo(px+20,py+7);x.lineTo(px+26,py+18);x.lineTo(px+20,py+26);x.lineTo(px+14,py+18);x.closePath();x.fill()}
+function drawDialog(){rect(10,222,460,88,'#101722ee');x.strokeStyle='#dcefff';x.strokeRect(10,222,460,88);let words=dialog.split(' '),line='',yy=245;for(let w of words){if((line+w).length>48){text(line,20,yy,12);yy+=19;line=''}line+=w+' '}text(line,20,yy,12);text('TOCCA AZIONE / OK',322,299,9)}
+function drawBattle(){
+ rect(0,0,480,320,'#88a85b');rect(0,155,480,165,'#607d45');
+ text(foe.name,330,25,15);text(`HP ${foe.hp}/${foe.max}`,330,43,11);drawLuminix(370,70);
+ text(lum.name,25,220,15);text(`HP ${lum.hp}/${lum.max}  EN ${lum.en}/${lum.maxen}`,25,238,11);drawLuminix(70,160);
+ rect(15,250,450,48,'#0d1420dd');text('SCEGLI UN’ABILITÀ',25,269,11);
+}
+draw();
+</script>
+</body>
+</html>
