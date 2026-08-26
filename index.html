@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>PRISMA — Base 1.0</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#10231c;font-family:system-ui,-apple-system,sans-serif;touch-action:none}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated}
+#hud{position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;padding:14px 16px;display:flex;justify-content:space-between;pointer-events:none}
+.badge{background:#152536;border:3px solid #a9c0cc;border-radius:16px;padding:10px 16px;color:white;font-weight:800;letter-spacing:.5px;box-shadow:0 4px 0 #071018}
+#menuBtn{pointer-events:auto;border:3px solid #a9c0cc;background:#152536;color:white;border-radius:16px;padding:12px 18px;font-size:17px;font-weight:800}
+#controls{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;justify-content:space-between;align-items:end;padding:0 28px;pointer-events:none}
+#joy{width:150px;height:150px;border:5px solid #dce7e9;border-radius:50%;background:#263f31cc;position:relative;pointer-events:auto;touch-action:none}
+#stick{width:72px;height:72px;position:absolute;left:50%;top:50%;margin:-36px;border-radius:50%;background:#aeb7ba;border:4px solid #f1f4f4;box-shadow:0 4px 0 #18231f;pointer-events:none}
+.actions{display:flex;gap:14px;pointer-events:auto}
+.action{min-width:150px;padding:20px 18px;border-radius:18px;border:3px solid #a9c0cc;background:#152536;color:white;font-size:20px;font-weight:900;box-shadow:0 5px 0 #071018}
+#toast{position:fixed;left:50%;bottom:190px;transform:translateX(-50%);background:#142333;color:#fff;border:3px solid #b8c9cf;border-radius:14px;padding:12px 18px;font-weight:700;display:none;max-width:85%;text-align:center}
+#panel{position:fixed;inset:0;background:#10231cee;display:none;align-items:center;justify-content:center;padding:24px}
+.card{width:min(520px,92vw);background:#f1ead5;border:5px solid #263b46;border-radius:20px;padding:22px;box-shadow:0 8px 0 #071018;color:#18242a}
+.card h2{margin-top:0}
+.card button{width:100%;padding:14px;margin-top:10px;border-radius:12px;border:3px solid #263b46;background:#d5b36a;font-weight:900}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="badge" id="place">LIVORNO · CITTÀ 01</div>
+  <button id="menuBtn">☰ MENU</button>
+</div>
+
+<div id="controls">
+  <div id="joy"><div id="stick"></div></div>
+  <div class="actions">
+    <button class="action" id="action">AZIONE</button>
+    <button class="action" id="prisma">PRISMA</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="panel">
+  <div class="card">
+    <h2>MENU PRISMA</h2>
+    <p>Questa è la nuova base del gioco. Da qui svilupperemo Squadra, Prismacon, combattimenti e catture.</p>
+    <button id="close">TORNA AL GIOCO</button>
+  </div>
+</div>
+
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+ctx.imageSmoothingEnabled=false;
+
+const state={
+  scene:'house',
+  player:{x:0,y:0,speed:3.2,dir:0},
+  world:{w:2400,h:1500},
+  houseDoor:{x:0,y:0},
+  houseSpawn:{x:0,y:0},
+  camera:{x:0,y:0},
+  joystick:{x:0,y:0,active:false}
+};
+
+let vw=innerWidth,vh=innerHeight,dpr=Math.min(devicePixelRatio||1,2);
+function resize(){
+  vw=innerWidth;vh=innerHeight;
+  canvas.width=Math.floor(vw*dpr);canvas.height=Math.floor(vh*dpr);
+  canvas.style.width=vw+'px';canvas.style.height=vh+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize',resize);resize();
+
+function showToast(t){
+  const el=document.getElementById('toast');el.textContent=t;el.style.display='block';
+  clearTimeout(showToast.t);showToast.t=setTimeout(()=>el.style.display='none',1800);
+}
+
+function resetJoystick(){
+  state.joystick.x=0;state.joystick.y=0;state.joystick.active=false;
+  stick.style.transform='translate(0,0)';
+}
+
+function setJoystick(clientX,clientY){
+  const r=joy.getBoundingClientRect();
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  const max=r.width*.31;
+  let dx=clientX-cx,dy=clientY-cy,l=Math.hypot(dx,dy);
+  if(l>max){dx=dx/l*max;dy=dy/l*max}
+  state.joystick.x=dx/max;state.joystick.y=dy/max;
+  stick.style.transform=`translate(${dx}px,${dy}px)`;
+}
+
+const joy=document.getElementById('joy'),stick=document.getElementById('stick');
+joy.addEventListener('pointerdown',e=>{
+  e.preventDefault();state.joystick.active=true;
+  try{joy.setPointerCapture(e.pointerId)}catch(_){}
+  setJoystick(e.clientX,e.clientY);
+},{passive:false});
+joy.addEventListener('pointermove',e=>{
+  if(!state.joystick.active)return;e.preventDefault();setJoystick(e.clientX,e.clientY);
+},{passive:false});
+joy.addEventListener('pointerup',e=>{e.preventDefault();resetJoystick()},{passive:false});
+joy.addEventListener('pointercancel',resetJoystick,{passive:false});
+
+function setupMap(){
+  // Uscita volutamente in una zona aperta e stabile.
+  state.houseDoor={x:1200,y:1010};
+  state.houseSpawn={x:1200,y:1090};
+  state.player.x=1200;state.player.y=1090;
+}
+setupMap();
+
+function movePlayer(dx,dy){
+  // BASE NUOVA: nessuna collisione nella prima fase.
+  // Prima rendiamo affidabile il movimento, poi aggiungiamo le collisioni.
+  const p=state.player;
+  p.x=Math.max(40,Math.min(state.world.w-40,p.x+dx));
+  p.y=Math.max(180,Math.min(state.world.h-40,p.y+dy));
+  if(Math.abs(dx)>Math.abs(dy) && Math.abs(dx)>.05)p.dir=dx>0?1:3;
+  else if(Math.abs(dy)>.05)p.dir=dy>0?2:0;
+}
+
+function enterWorld(){
+  state.scene='world';
+  state.player.x=state.houseSpawn.x;
+  state.player.y=state.houseSpawn.y;
+  state.camera.x=state.player.x-vw/2;
+  state.camera.y=state.player.y-vh/2;
+  resetJoystick();
+  document.getElementById('place').textContent='LIVORNO · CITTÀ 01';
+  showToast('Sei uscito di casa.');
+}
+
+function drawPixelPerson(x,y){
+  ctx.save();ctx.translate(Math.round(x),Math.round(y));
+  // ombra
+  ctx.fillStyle='#384a3d';ctx.fillRect(-15,18,30,7);
+  // gambe
+  ctx.fillStyle='#e8e8dc';ctx.fillRect(-10,11,8,15);ctx.fillRect(2,11,8,15);
+  ctx.fillStyle='#283b4d';ctx.fillRect(-11,23,9,5);ctx.fillRect(2,23,10,5);
+  // corpo
+  ctx.fillStyle='#24528a';ctx.fillRect(-16,-5,32,20);
+  ctx.fillStyle='#17334f';ctx.fillRect(-18,-4,5,18);ctx.fillRect(13,-4,5,18);
+  // collo
+  ctx.fillStyle='#e4aa83';ctx.fillRect(-7,-13,14,10);
+  // testa/capelli
+  ctx.fillStyle='#e7b18b';ctx.fillRect(-14,-29,28,19);
+  ctx.fillStyle='#1c2730';ctx.fillRect(-14,-34,28,8);ctx.fillRect(-10,-38,20,6);
+  ctx.fillStyle='#1c2730';ctx.fillRect(-14,-28,5,8);ctx.fillRect(9,-28,5,8);
+  // occhi sempre presenti
+  ctx.fillStyle='#1b2025';ctx.fillRect(-8,-22,4,4);ctx.fillRect(4,-22,4,4);
+  ctx.restore();
+}
+
+function drawHouse(x,y,roof){
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle='#d9b486';ctx.fillRect(-125,-65,250,130);
+  ctx.fillStyle=roof;ctx.beginPath();ctx.moveTo(-145,-65);ctx.lineTo(0,-135);ctx.lineTo(145,-65);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#6f625c';ctx.fillRect(-16,15,32,50);
+  ctx.fillStyle='#9fc5c9';ctx.fillRect(-92,-25,38,30);ctx.fillRect(54,-25,38,30);
+  ctx.fillStyle='#f2e7c6';ctx.fillRect(-98,-32,50,7);ctx.fillRect(48,-32,50,7);
+  ctx.fillStyle='#58483e';ctx.fillRect(-105,-28,7,38);ctx.fillRect(98,-28,7,38);
+  ctx.restore();
+}
+
+function drawWorld(){
+  ctx.fillStyle='#6d9b64';ctx.fillRect(0,0,vw,vh);
+  ctx.save();ctx.translate(-state.camera.x,-state.camera.y);
+
+  // mare
+  ctx.fillStyle='#3d91a0';ctx.fillRect(0,0,state.world.w,180);
+  for(let x=20;x<state.world.w;x+=100){
+    ctx.fillStyle='#73bdc6';ctx.fillRect(x,40,48,5);ctx.fillRect(x+35,105,60,5);
+  }
+  // strada principale
+  ctx.fillStyle='#b9b3a5';ctx.fillRect(0,760,state.world.w,280);
+  ctx.fillStyle='#d2c9b2';ctx.fillRect(0,180,state.world.w,90);
+
+  drawHouse(450,480,'#6b6377');
+  drawHouse(1200,480,'#596274');
+  drawHouse(1900,480,'#8a5b55');
+  drawHouse(520,1200,'#6a6374');
+  drawHouse(1450,1200,'#8a5b55');
+
+  // casa di partenza
+  drawHouse(1200,950,'#626a7b');
+
+  // alberi semplici, lontani dal punto di uscita
+  for(const [x,y] of [[250,650],[600,650],[1800,650],[2100,650],[350,1080],[2050,1080]]){
+    ctx.fillStyle='#5b4538';ctx.fillRect(x-6,y,12,42);
+    ctx.fillStyle='#326548';ctx.fillRect(x-25,y-30,50,45);
+    ctx.fillStyle='#3e7a50';ctx.fillRect(x-18,y-48,36,28);
+  }
+
+  // area di uscita evidenziata solo nella prima prova
+  if(state.scene==='world'){
+    ctx.fillStyle='#8e7a59';
+    ctx.fillRect(state.houseDoor.x-36,state.houseDoor.y-10,72,12);
+  }
+
+  drawPixelPerson(state.player.x,state.player.y);
+  ctx.restore();
+}
+
+function drawHouseInterior(){
+  ctx.fillStyle='#c9a979';ctx.fillRect(0,0,vw,vh);
+  ctx.fillStyle='#8d694f';ctx.fillRect(0,vh*.74,vw,vh*.26);
+  ctx.fillStyle='#d9d0bd';ctx.fillRect(vw*.18,vh*.16,vw*.64,vh*.58);
+  ctx.fillStyle='#6d5748';ctx.fillRect(vw*.44,vh*.57,vw*.12,vh*.17);
+  drawPixelPerson(vw/2,vh*.48);
+  ctx.fillStyle='#fff1c5';ctx.font='bold 18px system-ui';ctx.textAlign='center';
+  ctx.fillText('CASA',vw/2,42);
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(32,now-last)/16.67;last=now;
+  if(state.scene==='world' && state.joystick.active){
+    const j=state.joystick,l=Math.hypot(j.x,j.y);
+    if(l>.03){
+      const nx=j.x/Math.max(1,l),ny=j.y/Math.max(1,l);
+      movePlayer(nx*state.player.speed*dt,ny*state.player.speed*dt);
+    }
+  }
+  if(state.scene==='world'){
+    state.camera.x=Math.max(0,Math.min(state.world.w-vw,state.player.x-vw/2));
+    state.camera.y=Math.max(0,Math.min(state.world.h-vh,state.player.y-vh/2));
+    drawWorld();
+  }else{
+    drawHouseInterior();
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.getElementById('action').onclick=()=>{
+  if(state.scene==='house')enterWorld();
+};
+document.getElementById('menuBtn').onclick=()=>document.getElementById('panel').style.display='flex';
+document.getElementById('close').onclick=()=>document.getElementById('panel').style.display='none';
+document.getElementById('prisma').onclick=()=>showToast('Il sistema Prismic verrà aggiunto nella prossima fase.');
+</script>
+</body>
+</html>
