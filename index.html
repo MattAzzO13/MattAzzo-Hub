@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>PRISMA — Prototype 1.0</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#102019;touch-action:none;font-family:system-ui,-apple-system,sans-serif}
+#game{position:fixed;inset:0}
+canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+#top{position:fixed;top:max(10px,env(safe-area-inset-top));left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
+.badge{background:#172838eF;color:#fff;border:3px solid #b9c8ce;border-radius:13px;padding:8px 11px;font-size:12px;font-weight:800;box-shadow:0 4px 0 #091018}
+#mini{width:116px;height:116px;border-radius:12px;border:3px solid #fff;background:#16231d;box-shadow:0 4px 0 #091018;overflow:hidden}
+#mini canvas{width:100%;height:100%}
+#controls{position:fixed;left:0;right:0;bottom:max(14px,env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:end;padding:0 20px;z-index:12;pointer-events:none}
+#joy{width:146px;height:146px;border-radius:50%;background:#263a31aa;border:4px solid #e9eeee;position:relative;pointer-events:auto;touch-action:none}
+#stick{position:absolute;width:62px;height:62px;left:50%;top:50%;margin:-31px;border-radius:50%;background:#adb5b6;border:4px solid #f7f7f7;box-shadow:0 4px 0 #1a241f}
+#buttons{display:flex;gap:10px;pointer-events:auto}
+button{font:inherit}
+.act{border:3px solid #b9c8ce;border-radius:13px;background:#172838;color:#fff;font-weight:900;padding:15px 14px;box-shadow:0 4px 0 #091018;min-width:90px}
+#dialog{position:fixed;left:50%;bottom:188px;transform:translateX(-50%);width:min(650px,92vw);background:#f3ecd9;color:#17222a;border:4px solid #263a46;border-radius:16px;padding:16px;z-index:20;display:none;box-shadow:0 7px 0 #091018}
+#dialog h3{margin:0 0 7px}
+#dialog p{margin:0;line-height:1.45}
+#dialog button{margin-top:12px;width:100%;padding:10px;border:3px solid #263a46;border-radius:10px;background:#d4b364;font-weight:900}
+#call{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(360px,90vw);background:#172838;color:#fff;border:4px solid #b9c8ce;border-radius:18px;padding:20px;z-index:30;display:none;text-align:center;box-shadow:0 8px 0 #091018}
+#call h2{margin:0 0 8px}
+#call button{margin-top:12px;width:100%;padding:12px;border:0;border-radius:11px;background:#d4b364;font-weight:900}
+#menu{position:fixed;inset:0;background:#0d1714e8;z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
+.card{width:min(430px,92vw);background:#f3ecd9;color:#17222a;border:4px solid #263a46;border-radius:18px;padding:20px;box-shadow:0 8px 0 #091018}
+.card button{width:100%;padding:12px;margin-top:9px;border:3px solid #263a46;border-radius:10px;background:#d4b364;font-weight:900}
+</style>
+</head>
+<body>
+<div id="game"><canvas id="c"></canvas></div>
+<div id="top">
+  <div class="badge" id="area">PARCO · LIVORNO</div>
+  <div id="mini"><canvas id="mc"></canvas></div>
+</div>
+<div id="controls">
+  <div id="joy"><div id="stick"></div></div>
+  <div id="buttons">
+    <button class="act" id="interact">INTERAGISCI</button>
+    <button class="act" id="menuBtn">MENU</button>
+  </div>
+</div>
+<div id="dialog"><h3 id="dh"></h3><p id="dp"></p><button id="next">CONTINUA</button></div>
+<div id="call"><h2>📞 Chiamata in arrivo</h2><p>Professor Elio ti sta chiamando dal laboratorio.</p><button id="answer">RISPONDI</button></div>
+<div id="menu"><div class="card"><h2>PRISMA</h2><p><b>Orologio:</b> nessun Prismic ancora addomesticato.</p><p><b>Obiettivo:</b> raggiungi il laboratorio del Professor Elio.</p><button id="closeMenu">TORNA AL GIOCO</button></div></div>
+
+<script>
+(() => {
+const c=document.getElementById('c'),ctx=c.getContext('2d'),mc=document.getElementById('mc'),mctx=mc.getContext('2d');
+ctx.imageSmoothingEnabled=false;mctx.imageSmoothingEnabled=false;
+let W,H,dpr;
+function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;c.style.width=W+'px';c.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);mc.width=232;mc.height=232}
+addEventListener('resize',resize);resize();
+
+const world={w:2400,h:1600};
+const p={x:330,y:760,speed:190,dir:2};
+const lab={x:1190,y:450,w:220,h:170};
+const zones=[
+ {name:'Parco',x:0,y:0,w:650,h:700},
+ {name:'Venezia Nuova',x:650,y:0,w:750,h:700},
+ {name:'Piazza della Repubblica',x:0,y:700,w:800,h:900},
+ {name:'Terrazza Mascagni',x:800,y:0,w:800,h:900},
+ {name:'Fortezza Vecchia',x:1600,y:700,w:800,h:900}
+];
+const prismic={x:1950,y:1280,visible:false,domesticated:false};
+let started=false,callShown=false,dialogMode='',dialogStep=0;
+let cam={x:0,y:0},steps=0;
+const joy=document.getElementById('joy'),stick=document.getElementById('stick');
+let active=false,jx=0,jy=0,pid=null;
+function setJoy(x,y){const r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width/2-32;let dx=x-cx,dy=y-cy,l=Math.hypot(dx,dy);if(l>max){dx=dx/l*max;dy=dy/l*max}jx=dx/max;jy=dy/max;stick.style.transform=`translate(${dx}px,${dy}px)`}
+function resetJoy(){active=false;pid=null;jx=jy=0;stick.style.transform='translate(0,0)'}
+joy.addEventListener('pointerdown',e=>{active=true;pid=e.pointerId;try{joy.setPointerCapture(pid)}catch(_){}setJoy(e.clientX,e.clientY);e.preventDefault()},{passive:false});
+joy.addEventListener('pointermove',e=>{if(active&&e.pointerId===pid){setJoy(e.clientX,e.clientY);e.preventDefault()}},{passive:false});
+joy.addEventListener('pointerup',resetJoy);joy.addEventListener('pointercancel',resetJoy);joy.addEventListener('lostpointercapture',resetJoy);
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function zoneAt(x,y){return zones.find(z=>x>=z.x&&x<z.x+z.w&&y>=z.y&&y<z.y+z.h)||zones[0]}
+function openDialog(title,text,mode='story'){dialogMode=mode;dialogStep=0;document.getElementById('dh').textContent=title;document.getElementById('dp').textContent=text;document.getElementById('dialog').style.display='block'}
+function closeDialog(){document.getElementById('dialog').style.display='none'}
+document.getElementById('next').onclick=()=>{
+ if(dialogMode==='prof' && dialogStep===0){dialogStep=1;document.getElementById('dp').textContent='I Prismic sono animali liberi. Alcuni si fidano subito, altri hanno bisogno di cibo, carezze o di essere indeboliti in combattimento. Quando uno si affida a te puoi custodirlo nel tuo orologio e richiamarlo quando vuoi.';return}
+ if(dialogMode==='prof' && dialogStep===1){dialogStep=2;document.getElementById('dp').textContent='Ti regalo del mangime. Vai verso la zona di Fortezza Vecchia: lì vive un piccolo Prismic che potrà diventare il tuo primo compagno.';return}
+ if(dialogMode==='capture'){prismic.domesticated=true;prismic.visible=true;closeDialog();openDialog('Prismic addomesticato!','Hai ottenuto il tuo primo Prismic. Ora puoi immaginare di inserirlo nel tuo orologio.','done');return}
+ closeDialog();
+}
+document.getElementById('answer').onclick=()=>{document.getElementById('call').style.display='none';openDialog('Professor Elio','Ciao! Sono il Professor Elio. Ho bisogno che tu venga al mio laboratorio. Ti aspetterò lì.','call')}
+document.getElementById('interact').onclick=()=>{
+ if(!started)return;
+ const d=Math.hypot(p.x-lab.x,p.y-lab.y);
+ if(d<190){openDialog('Professor Elio','Benvenuto! Prima di tutto devi sapere cosa sono i Prismic.','prof');return}
+ if(Math.hypot(p.x-prismic.x,p.y-prismic.y)<150&&!prismic.domesticated){prismic.visible=true;openDialog('Un piccolo Prismic','Sembra curioso ma diffidente. Hai del mangime: puoi offrirglielo per provare ad addomesticarlo.','capture')}
+}
+document.getElementById('menuBtn').onclick=()=>document.getElementById('menu').style.display='flex';
+document.getElementById('closeMenu').onclick=()=>document.getElementById('menu').style.display='none';
+
+function draw(){
+ ctx.fillStyle='#76a766';ctx.fillRect(0,0,W,H);
+ cam.x=clamp(p.x-W/2,0,world.w-W);cam.y=clamp(p.y-H/2,0,world.h-H);
+ ctx.save();ctx.translate(-cam.x,-cam.y);
+ // base grass
+ ctx.fillStyle='#76a766';ctx.fillRect(0,0,world.w,world.h);
+ // sea
+ ctx.fillStyle='#3e929f';ctx.fillRect(0,0,world.w,180);
+ for(let x=0;x<world.w;x+=120){ctx.fillStyle='#72bdc5';ctx.fillRect(x+15,50,55,5);ctx.fillRect(x+65,120,42,5)}
+ // roads
+ ctx.fillStyle='#b7b2a7';ctx.fillRect(0,610,world.w,190);ctx.fillRect(720,0,190,world.h);
+ ctx.fillStyle='#d0c9b5';ctx.fillRect(0,785,world.w,24);
+ // area details
+ for(let x=40;x<650;x+=70)for(let y=230;y<570;y+=70){ctx.fillStyle='#4f8151';ctx.fillRect(x,y,6,20);ctx.fillRect(x-5,y+8,16,5)}
+ // buildings
+ drawBuilding(830,250,230,150,'#d8b18a','#655b70');
+ drawBuilding(1520,340,230,170,'#d8b18a','#79564f');
+ drawBuilding(280,1030,250,170,'#d8b18a','#655b70');
+ drawBuilding(1740,980,280,180,'#c9aa83','#67594e');
+ // lab
+ drawLab();
+ // fortress
+ drawFortress();
+ // Prismic
+ if(prismic.visible && !prismic.domesticated) drawPrismic(prismic.x,prismic.y);
+ // player
+ drawPlayer(p.x,p.y);
+ ctx.restore();
+ drawMinimap();
+}
+
+function drawBuilding(x,y,w,h,wall,roof){
+ ctx.fillStyle='#52654d';ctx.fillRect(x+8,y+h-2,w,12);
+ ctx.fillStyle=wall;ctx.fillRect(x,y,w,h);
+ ctx.fillStyle=roof;ctx.beginPath();ctx.moveTo(x-12,y);ctx.lineTo(x+w/2,y-65);ctx.lineTo(x+w+12,y);ctx.closePath();ctx.fill();
+ ctx.fillStyle='#8fc3c9';ctx.fillRect(x+24,y+42,42,38);ctx.fillRect(x+w-66,y+42,42,38);
+ ctx.fillStyle='#5a3e34';ctx.fillRect(x+w/2-20,y+h-62,40,62);
+}
+function drawLab(){
+ ctx.fillStyle='#52654d';ctx.fillRect(lab.x+8,lab.y+lab.h-2,lab.w,12);
+ ctx.fillStyle='#ded0ad';ctx.fillRect(lab.x,lab.y,lab.w,lab.h);
+ ctx.fillStyle='#566477';ctx.beginPath();ctx.moveTo(lab.x-15,lab.y);ctx.lineTo(lab.x+lab.w/2,lab.y-70);ctx.lineTo(lab.x+lab.w+15,lab.y);ctx.closePath();ctx.fill();
+ ctx.fillStyle='#a5d0d1';ctx.fillRect(lab.x+28,lab.y+42,52,42);ctx.fillRect(lab.x+140,lab.y+42,52,42);
+ ctx.fillStyle='#513a32';ctx.fillRect(lab.x+86,lab.y+88,48,82);
+ ctx.fillStyle='#fff3cc';ctx.font='bold 16px system-ui';ctx.textAlign='center';ctx.fillText('LABORATORIO',lab.x+lab.w/2,lab.y-82);
+}
+function drawFortress(){
+ const x=1760,y=1040,w=360,h=230;
+ ctx.fillStyle='#53604f';ctx.fillRect(x+10,y+w*0+220,w,14);
+ ctx.fillStyle='#9b8e77';ctx.fillRect(x,y,w,220);
+ ctx.fillStyle='#706654';ctx.fillRect(x+20,y-55,w-40,60);
+ ctx.fillStyle='#584d42';for(let i=0;i<4;i++)ctx.fillRect(x+35+i*95,y-70,45,22);
+ ctx.fillStyle='#4e4037';ctx.fillRect(x+w/2-30,y+125,60,95);
+ ctx.fillStyle='#c8b891';ctx.font='bold 16px system-ui';ctx.textAlign='center';ctx.fillText('FORTEZZA VECCHIA',x+w/2,y+112);
+}
+function drawPlayer(x,y){
+ ctx.fillStyle='#0005';ctx.fillRect(x-16,y+24,32,7);
+ ctx.fillStyle='#eee';ctx.fillRect(x-11,y+17,8,17);ctx.fillRect(x+3,y+17,8,17);
+ ctx.fillStyle='#27364c';ctx.fillRect(x-12,y+31,10,5);ctx.fillRect(x+2,y+31,11,5);
+ ctx.fillStyle='#315b8f';ctx.fillRect(x-15,y-12,30,31);ctx.strokeStyle='#172c47';ctx.lineWidth=3;ctx.strokeRect(x-15,y-12,30,31);
+ ctx.fillStyle='#e6b28d';ctx.fillRect(x-12,y-32,24,22);ctx.strokeStyle='#172c47';ctx.strokeRect(x-12,y-32,24,22);
+ ctx.fillStyle='#263047';ctx.fillRect(x-12,y-36,24,8);
+ ctx.fillStyle='#18202a';ctx.fillRect(x-8,y-24,4,4);ctx.fillRect(x+4,y-24,4,4);
+}
+function drawPrismic(x,y){
+ ctx.fillStyle='#0004';ctx.fillRect(x-18,y+15,36,7);
+ ctx.fillStyle='#d6a65d';ctx.beginPath();ctx.ellipse(x,y,24,18,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#6d4c37';ctx.beginPath();ctx.ellipse(x-12,y-3,9,12,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#e7b77a';ctx.beginPath();ctx.ellipse(x+13,y-3,9,12,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#202a2a';ctx.fillRect(x-7,y-4,4,4);ctx.fillRect(x+6,y-4,4,4);
+}
+function drawMinimap(){
+ mctx.clearRect(0,0,232,232);mctx.fillStyle='#41694a';mctx.fillRect(0,0,232,232);
+ mctx.fillStyle='#3c909d';mctx.fillRect(0,0,232,28);
+ mctx.fillStyle='#b7b2a7';mctx.fillRect(0,92,232,26);mctx.fillRect(70,0,25,232);
+ // route to lab
+ mctx.strokeStyle='#f2cf68';mctx.lineWidth=7;mctx.beginPath();mctx.moveTo(p.x/world.w*232,p.y/world.h*232);mctx.lineTo(lab.x/world.w*232,lab.y/world.h*232);mctx.stroke();
+ mctx.fillStyle='#fff';mctx.fillRect(p.x/world.w*232-4,p.y/world.h*232-4,8,8);
+ mctx.fillStyle='#e7b74f';mctx.fillRect(lab.x/world.w*232-5,lab.y/world.h*232-5,10,10);
+}
+let last=performance.now();
+function loop(t){
+ const dt=Math.min(.05,(t-last)/1000);last=t;
+ if(started&&active){
+   const len=Math.hypot(jx,jy);
+   if(len>.03){const nx=jx/Math.max(1,len),ny=jy/Math.max(1,len);p.x+=nx*p.speed*dt;p.y+=ny*p.speed*dt;steps+=Math.hypot(nx*p.speed*dt,ny*p.speed*dt)}
+ }
+ p.x=clamp(p.x,50,world.w-50);p.y=clamp(p.y,230,world.h-50);
+ if(started&&!callShown&&steps>105){callShown=true;document.getElementById('call').style.display='block'}
+ const z=zoneAt(p.x,p.y);document.getElementById('area').textContent=z.name.toUpperCase()+' · LIVORNO';
+ draw();requestAnimationFrame(loop);
+}
+document.getElementById('answer').onclick=()=>{document.getElementById('call').style.display='none';openDialog('Professor Elio','Vieni al laboratorio. Ho qualcosa di importante da mostrarti.','call')}
+requestAnimationFrame(loop);
+document.getElementById('answer').onclick=()=>{document.getElementById('call').style.display='none';openDialog('Professor Elio','Vieni al laboratorio. Ho qualcosa di importante da mostrarti.','call')}
+document.getElementById('interact').onclick=()=>{if(!started)return;const d=Math.hypot(p.x-lab.x,p.y-lab.y);if(d<180){openDialog('Professor Elio','Benvenuto. In questo mondo esistono i Prismic, creature libere che possono diventare compagni.','prof')}else if(Math.hypot(p.x-prismic.x,p.y-prismic.y)<150&&!prismic.domesticated){prismic.visible=true;openDialog('Prismic selvatico','È diffidente. Prova a offrirgli del mangime.','capture')}}
+document.getElementById('next').onclick=()=>{if(dialogMode==='prof'&&dialogStep===0){dialogStep=1;document.getElementById('dp').textContent='Puoi addomesticarli con cibo e attenzioni, oppure indebolirli in combattimento. Una volta addomesticati, puoi custodirli nel tuo orologio.';return}if(dialogMode==='prof'&&dialogStep===1){dialogStep=2;document.getElementById('dp').textContent='Prendi questo mangime e raggiungi la Fortezza Vecchia. Lì troverai il tuo primo Prismic.';return}if(dialogMode==='capture'){prismic.domesticated=true;closeDialog();openDialog('Primo Prismic!','Il Prismic si è fidato di te. Ora è il tuo primo compagno.','done');return}closeDialog()}
+})();
+</script>
+</body>
+</html>
